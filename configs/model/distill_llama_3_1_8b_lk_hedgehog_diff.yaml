@@ -20,6 +20,7 @@ model:
 attention:
   attention_type: lolcats_llama_window_sw_diff
   feature_map: softmax_dim
+  window_size: 64
   feature_map_kwargs:
     eps: 1e-12
     # mlp: null  # to set
