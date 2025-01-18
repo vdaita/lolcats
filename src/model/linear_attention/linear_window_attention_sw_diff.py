@@ -33,6 +33,7 @@ def get_masks(window_size: int, q_len: int, k_len: int,
     -> 1 is include, 0 is ignore
     """
     kwargs = {'device': device, 'dtype': int}
+    
     causal_mask = torch.ones((q_len, k_len), **kwargs).tril(k_len - q_len)
     linear_mask = torch.ones((q_len, k_len), **kwargs).tril(k_len - q_len - window_size)
     window_mask = causal_mask - linear_mask
