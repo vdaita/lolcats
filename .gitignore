@@ -1,3 +1,8 @@
+# Logs and Data
+data/
+.locks/
+logs/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
