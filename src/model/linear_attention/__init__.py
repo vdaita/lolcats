@@ -22,7 +22,6 @@ from .linear_window_attention_tk_gen import (
     LinearAttentionTKWindowGenerationCache
 )
 
-from .linear_window_attention_sw_diff import (
-    LolcatsSlidingWindowAttentionWithDiff,
-    LinearAttentionSlidingWindowDiffCache
+from .linear_attention_diff import (
+    LolcatsDiffLinearAttention
 )

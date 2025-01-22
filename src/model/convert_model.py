@@ -113,9 +113,9 @@ def get_attention(attention_type: str, **kwargs: any):
         from .linear_attention import LolcatsSlidingWindowAttention
         return partial(LolcatsSlidingWindowAttention, **kwargs)
     
-    elif attention_type == 'lolcats_llama_window_sw_diff':
-        from .linear_attention import LolcatsSlidingWindowAttentionWithDiff
-        return partial(LolcatsSlidingWindowAttentionWithDiff, **kwargs)
+    elif attention_type == 'lolcats_llama_diff':
+        from .linear_attention import LolcatsDiffLinearAttention
+        return partial(LolcatsDiffLinearAttention, **kwargs)
 
     elif attention_type == 'lolcats_llama_window_sw_linear':
         from .linear_attention.linear_window_attention_sw_linear import LolcatsLinearSlidingWindowAttention
@@ -159,10 +159,6 @@ def get_attention_cache(attention_type: str, past_key_values: any = None):
     elif 'llama_window_sw' in attention_type:
         from .linear_attention import LinearAttentionSlidingWindowCache
         return LinearAttentionSlidingWindowCache()
-
-    elif 'llama_window_sw_diff' in attention_type:
-        from .linear_attention import LinearAttentionSlidingWindowDiffCache
-        return LinearAttentionSlidingWindowDiffCache()
 
     elif 'llama_window_sw_linear' in attention_type:
         from .linear_attention import LinearAttentionSlidingWindowCache
