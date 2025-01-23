@@ -28,7 +28,7 @@ def write_gpu_scripts(output_dir, file_chunks):
 
         with open(script_path, "w") as script_file:
             script_file.write(f"#!/bin/bash\n")
-            script_file.write(f"conda activate lolcats-env")
+            script_file.write(f"conda activate lolcats-env\n")
             script_file.write(f"export CUDA_VISIBLE_DEVICES={gpu_id}\n")
 
             for filename in chunk:
