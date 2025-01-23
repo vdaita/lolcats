@@ -57,9 +57,18 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        self.feature_map_k_prime, self.feature_map_q_prime = copy.deepcopy(self.feature_map_k), copy.deepcopy(self.feature_map_q)
+        if (not kwargs["feature_map_prime"]) or (kwargs["feature_map_prime"] == kwargs["feature_map"]):
+            self.feature_map_k_prime, self.feature_map_q_prime = copy.deepcopy(self.feature_map_k_prime), copy.deepcopy(self.feature_map_q_prime)
+        else:
+            self.init_feature_map_(
+                kwargs["feature_map_prime"],
+                kwargs["feature_map_kwargs"],
+                kwargs["learned_kernel"],
+                kwargs["learned_kernel_kwargs"],
+                write_to_prime=True
+            )
 
-        self.lambda_init = 0.25
+        self.lambda_init = 0.25 if not kwargs["lambda_init"] else kwargs["lambda_init"]
         self.lambda_parameterized = kwargs["lambda_parameterized"]
 
         if self.lambda_parameterized:
@@ -96,10 +105,12 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
         q, k, v, kv_seq_len = self.process_qkv(hidden_states, attention_mask, 
                                                position_ids, past_key_value)
         f_q, f_k = self.feature_map_q(q), self.feature_map_k(k)  # Have to do after repeat for grouped-query attn if we use same fmap
-        f_qp, f_kp = self.feature_map_q_prime(q).sigmoid(), self.feature_map_k_prime(k).sigmoid()
-
-        f_qp = f_qp * f_q
-        f_kp = f_kp * f_k
+        if self.lambda_init > 0:
+            f_qp, f_kp = self.feature_map_q_prime(q).sigmoid(), self.feature_map_k_prime(k).sigmoid()
+            f_qp = f_qp * f_q
+            f_kp = f_kp * f_k
+        else:
+            f_qp, f_kp = self.feature_map_q_prime(q), self.feature_map_k_prime(k)
 
         if self.train_attention:
             # 1. Compute "ground-truth" attention output and weights
