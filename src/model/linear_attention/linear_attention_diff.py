@@ -24,8 +24,8 @@ def diff_quadratic_attention(q_1: torch.Tensor, k_1: torch.Tensor, q_2: torch.Te
         q_1, k_1 = q_1.float(), k_1.float()
         q_2, k_2 = q_2.float(), k_2.float()
     
-    if not(0 <= alpha.item() and alpha.item() <= 1):
-        breakpoint()
+    # if not(0 <= alpha.item() and alpha.item() <= 1):
+    #     breakpoint()
 
     a_1 = torch.einsum('bhmd,bhnd->bhmn', q_1, k_1)  # note we don't scale, tho we could
     a_2 = torch.einsum('bhmd,bhnd->bhmn', q_2, k_2)
@@ -59,11 +59,22 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
 
         self.feature_map_k_prime, self.feature_map_q_prime = copy.deepcopy(self.feature_map_k), copy.deepcopy(self.feature_map_q)
 
-        self.lambda_init = 0.2        
-        self.lambda_q1 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
-        self.lambda_k1 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
-        self.lambda_q2 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
-        self.lambda_k2 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
+        self.lambda_init = 0.25
+        self.lambda_parameterized = kwargs["lambda_parameterized"]
+
+        if self.lambda_parameterized:
+            self.lambda_q1 = nn.Parameter(
+                torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            )
+            self.lambda_k1 = nn.Parameter(
+                torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            )
+            self.lambda_q2 = nn.Parameter(
+                torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            )
+            self.lambda_k2 = nn.Parameter(
+                torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0, std=0.1)
+            )
 
         torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
 
@@ -90,16 +101,19 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
         f_qp = f_qp * f_q
         f_kp = f_kp * f_k
 
-        lambda_1 = torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float().type_as(q)
-        lambda_2 = torch.sum(self.lambda_q2 * self.lambda_k2, dim=-1).float().type_as(q)
-        lambda_full = F.sigmoid(lambda_1 - lambda_2 + self.lambda_init)
-
         if self.train_attention:
             # 1. Compute "ground-truth" attention output and weights
             with torch.no_grad():
                 _y_true, a_true = softmax_attention(q, k, v)[:2]
                 y_true = _y_true.transpose(1, 2).contiguous().view(b, l, self.hidden_size)
                 y_true = self.o_proj(y_true)
+
+            if self.lambda_parameterized:
+                lambda_1 = torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float().type_as(q)
+                lambda_2 = torch.sum(self.lambda_q2 * self.lambda_k2, dim=-1).float().type_as(q)
+                lambda_full = torch.tanh(torch.relu(lambda_1 - lambda_2 + self.lambda_init))
+            else:
+                lambda_full = self.lambda_init
 
             y_pred, a_pred = diff_quadratic_attention(f_q, f_k, f_qp, f_kp, v, lambda_full)
             attn_weights = ((a_pred, a_true), (y_pred, _y_true))

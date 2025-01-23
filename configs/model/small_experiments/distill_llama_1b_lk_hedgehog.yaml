@@ -21,7 +21,7 @@ attention:
   layer_idx: null # to set
   learned_kernel: untied_head_einsum
   learned_kernel_kwargs:
-    feature_dim: 128
+    feature_dim: 64
     skip_connection: false
     bias: true
     zero_init: false

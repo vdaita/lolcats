@@ -12,12 +12,12 @@ model:
   rope_theta: 500000.0
 
 attention:
-  attention_type: lolcats_llama_diff
-  feature_map: relu
+  attention_type: lolcats_llama
+  feature_map: softmax_dim
   feature_map_kwargs:
     eps: 1e-12
     # mlp: null  # to set
-    fullspace: true
+    fullspace: false
   layer_idx: null # to set
   learned_kernel: untied_head_einsum
   learned_kernel_kwargs:
@@ -27,4 +27,3 @@ attention:
     zero_init: false
   tie_qk_kernels: false
   train_qk: false
-  lambda_parameterized: false
