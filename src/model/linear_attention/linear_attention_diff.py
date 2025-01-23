@@ -4,6 +4,7 @@ Diff linear attention class
 from typing import Tuple, Optional
 import copy
 import torch
+import torch.nn.functional as F
 from torch import nn
 from transformers.cache_utils import Cache
 from .linear_attention import LolcatsLinearAttention, softmax_attention
@@ -50,19 +51,21 @@ def diff_quadratic_attention(q_1: torch.Tensor, k_1: torch.Tensor, q_2: torch.Te
     if v is not None:
         y = torch.einsum('bhmn,bhnd->bhmd', a, v)
         # print("Diff quadratic attention shapes: ", y.shape, a.shape, v.shape)
-    return y, a, None
+    return y, a
 
 class LolcatsDiffLinearAttention(LolcatsLinearAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        
+
         self.feature_map_k_prime, self.feature_map_q_prime = copy.deepcopy(self.feature_map_k), copy.deepcopy(self.feature_map_q)
-        
+
         self.lambda_init = 0.2        
         self.lambda_q1 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
         self.lambda_k1 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
         self.lambda_q2 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
         self.lambda_k2 = nn.Parameter(torch.zeros(self.head_dim, dtype=torch.float32).normal_(mean=0,std=0.1))
+
+        torch.nn.utils.clip_grad_norm_(self.parameters(), max_norm=1.0)
 
     def forward(self,
             hidden_states: torch.Tensor,
@@ -83,13 +86,13 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
                                                position_ids, past_key_value)
         f_q, f_k = self.feature_map_q(q), self.feature_map_k(k)  # Have to do after repeat for grouped-query attn if we use same fmap
         f_qp, f_kp = self.feature_map_q_prime(q).sigmoid(), self.feature_map_k_prime(k).sigmoid()
-        
+
         f_qp = f_qp * f_q
         f_kp = f_kp * f_k
 
         lambda_1 = torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float().type_as(q)
         lambda_2 = torch.sum(self.lambda_q2 * self.lambda_k2, dim=-1).float().type_as(q)
-        lambda_full = torch.tanh(torch.relu(lambda_1 - lambda_2 + self.lambda_init))
+        lambda_full = F.sigmoid(lambda_1 - lambda_2 + self.lambda_init)
 
         if self.train_attention:
             # 1. Compute "ground-truth" attention output and weights
@@ -102,5 +105,5 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
             attn_weights = ((a_pred, a_true), (y_pred, _y_true))
         else:
             raise NotImplementedError("Only training attention is supported")
-        
-        return y_pred, attn_weights, None
+
+        return y_true, attn_weights, None
