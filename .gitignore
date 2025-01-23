@@ -5,6 +5,7 @@ data/
 logs/
 wandb/
 checkpoints/
+gpu_scripts/
 
 
 # Byte-compiled / optimized / DLL files
