@@ -57,7 +57,7 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
-        if (not kwargs["feature_map_prime"]) or (kwargs["feature_map_prime"] == kwargs["feature_map"]):
+        if (kwargs.get("feature_map_prime", kwargs["feature_map"]) == kwargs["feature_map"]):
             self.feature_map_k_prime, self.feature_map_q_prime = copy.deepcopy(self.feature_map_k_prime), copy.deepcopy(self.feature_map_q_prime)
         else:
             self.init_feature_map_(
@@ -68,8 +68,8 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
                 write_to_prime=True
             )
 
-        self.lambda_init = 0.25 if not kwargs["lambda_init"] else kwargs["lambda_init"]
-        self.lambda_parameterized = kwargs["lambda_parameterized"]
+        self.lambda_init = kwargs.get("lambda_init", 0)
+        self.lambda_parameterized = kwargs.get("lambda_parameterized", False)
 
         if self.lambda_parameterized:
             self.lambda_q1 = nn.Parameter(
@@ -118,6 +118,8 @@ class LolcatsDiffLinearAttention(LolcatsLinearAttention):
                 _y_true, a_true = softmax_attention(q, k, v)[:2]
                 y_true = _y_true.transpose(1, 2).contiguous().view(b, l, self.hidden_size)
                 y_true = self.o_proj(y_true)
+
+            # print("Shapes: f_qp: ", f_qp.shape, " f_kp: ", f_kp.shape, " f_k: ", f_k.shape, " f_q: ", f_q.shape)
 
             if self.lambda_parameterized:
                 lambda_1 = torch.sum(self.lambda_q1 * self.lambda_k1, dim=-1).float().type_as(q)

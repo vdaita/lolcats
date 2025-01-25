@@ -206,7 +206,7 @@ class LolcatsLinearAttention(nn.Module):
             if self.tie_qk_kernels:  # tie mlp weights for query and key feature maps
                 self.feature_map_k_prime = self.feature_map_q_prime
             else:
-                self.feature_map_k_prime = copy.deepcopy(self.feature_map_q)
+                self.feature_map_k_prime = copy.deepcopy(self.feature_map_q_prime)
         else:
             # Add "activation"; see src.models.feature_map.py
             self.feature_map_q = init_feature_map(name=feature_map,
