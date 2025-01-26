@@ -1,3 +1,15 @@
+
+# Logs and Data
+data/
+.locks/
+logs/
+wandb/
+checkpoints/
+gpu_scripts/
+
+.DS_Store
+
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

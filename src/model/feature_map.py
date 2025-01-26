@@ -21,6 +21,10 @@ def init_feature_map_act(name: str, fullspace: bool = True, **kwargs):
         return SoftmaxDim(**kwargs)
     elif name == 'softmax_dim' and not fullspace:
         return SoftmaxDimHalfspace(**kwargs)
+    elif name == 'softmax_dim_power' and fullspace:
+        return SoftmaxDimPower(**kwargs)
+    elif name == 'softmax_dim_power' and not fullspace:
+        return SoftmaxDimPowerHalfspace(**kwargs)
     elif name == 'exp_dim' and fullspace:
         return Exp(**kwargs)
     elif name == 'exp_dim' and not fullspace:
@@ -128,7 +132,17 @@ class SoftmaxDim(FeatureMapAct):
             torch.softmax(x, dim=-1), torch.softmax(-x, dim=-1)
         ], dim=-1).clamp(min=self.eps)
 
-                         
+class SoftmaxDimPower(FeatureMapAct):
+    def forward(self, x: torch.Tensor, *args: any, **kwargs: any):
+        return torch.cat(
+            [torch.softmax(x, dim=-1), torch.softmax(-x, dim=-1)], dim=-1
+        ).clamp(min=self.eps) ** (3 / 2)
+
+
+class SoftmaxDimPowerHalfspace(FeatureMapAct):
+    def forward(self, x: torch.Tensor, *args: any, **kwargs: any):
+        return torch.softmax(x, dim=-1).clamp(min=self.eps) ** (3 / 2)
+
 class SoftmaxDimHalfspace(FeatureMapAct):
     """
     Softmax activation as in https://arxiv.org/abs/2402.04347

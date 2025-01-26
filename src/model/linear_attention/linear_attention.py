@@ -162,14 +162,14 @@ class LolcatsLinearAttention(nn.Module):
             if layer_idx == 0 and learned_kernel_kwargs is not None:
                 for k, v in learned_kernel_kwargs.items():
                     print(f'-> {k}: {v}')
-                    
+
         self.remove_base_attn = remove_base_attn
 
         # Rotary embeddings (patch for Llama 3.1, Transformer v4.43.0)
         self.rotary_config = rotary_config
         if isinstance(self.rotary_config, DictConfig):  # ensure dict
             self.rotary_config = OmegaConf.to_container(self.rotary_config)
-        
+
         self.rotary_emb = None
         if self.base_config is not None and self.rotary_config is None:
             self.rotary_emb = base_attn.rotary_emb
@@ -182,7 +182,8 @@ class LolcatsLinearAttention(nn.Module):
                           feature_map: str,
                           feature_map_kwargs: dict,
                           learned_kernel: str = None,
-                          learned_kernel_kwargs: dict = None):
+                          learned_kernel_kwargs: dict = None,
+                          write_to_prime: bool = False):
         """
         Initialize MLP-based feature map
         """
@@ -196,14 +197,26 @@ class LolcatsLinearAttention(nn.Module):
             learned_kernel_kwargs['device']    = self.q_proj.weight.device
             # Create MLP
             mlp_learned_kernel = init_learned_kernel(learned_kernel, **learned_kernel_kwargs)
-        # Add "activation"; see src.models.feature_map.py
-        self.feature_map_q = init_feature_map(name=feature_map,
-                                              mlp=mlp_learned_kernel,
-                                              **feature_map_kwargs)
-        if self.tie_qk_kernels:  # tie mlp weights for query and key feature maps
-            self.feature_map_k = self.feature_map_q
+
+        if write_to_prime:
+            # Add "activation"; see src.models.feature_map.py
+            self.feature_map_q_prime = init_feature_map(name=feature_map,
+                                                mlp=mlp_learned_kernel,
+                                                **feature_map_kwargs)
+            if self.tie_qk_kernels:  # tie mlp weights for query and key feature maps
+                self.feature_map_k_prime = self.feature_map_q_prime
+            else:
+                self.feature_map_k_prime = copy.deepcopy(self.feature_map_q_prime)
         else:
-            self.feature_map_k = copy.deepcopy(self.feature_map_q)
+            # Add "activation"; see src.models.feature_map.py
+            self.feature_map_q = init_feature_map(name=feature_map,
+                                                mlp=mlp_learned_kernel,
+                                                **feature_map_kwargs)
+
+            if self.tie_qk_kernels:  # tie mlp weights for query and key feature maps
+                self.feature_map_k = self.feature_map_q
+            else:
+                self.feature_map_k = copy.deepcopy(self.feature_map_q)
 
     def init_weights_(self, base_attn: nn.Module, remove_base_attn: bool = True):
         """
@@ -327,12 +340,12 @@ class LolcatsLinearAttention(nn.Module):
                 _y_true, attn_true, _ = softmax_attention(q, k, v, causal=True)
                 y_true = _y_true.transpose(1, 2).contiguous().view(b, l, self.hidden_size)
                 y_true = self.o_proj(y_true)
-        
+
             # 2. Compute "predicted" attention (just weights)
             q, k = self.feature_map_q.q_map(q), self.feature_map_k.k_map(k)
             y_pred, attn_pred, _ = quadratic_attention(q, k, v, causal=True)
             attn_weights = ((attn_pred, attn_true), (y_pred, _y_true))  # Save both attention weights so we can supervise. 
-        
+
         else:  # Finetuning
             q, k = self.feature_map_q(q), self.feature_map_k(k)
             # Apply prefill mask
@@ -342,7 +355,7 @@ class LolcatsLinearAttention(nn.Module):
                 else:
                     lin_attn_mask = attention_mask[:, None, :, None]  # b, 1, k_len, 1
                 k = k.masked_fill(~lin_attn_mask, 0)
-            
+
             if past_key_value is not None:  # Initialize states
                 if len(past_key_value.kv_states) == self.layer_idx:
                     b, h, _, f = k.shape
@@ -370,7 +383,7 @@ class LolcatsLinearAttention(nn.Module):
                     y_true, _, _ = linear_attention(q, k, v, self.fp32_attention, self.eps)  # Ordinarily the states are ignored
                     past_key_value.update(k.detach(), v.detach(), self.layer_idx,
                                           accumulate_in_fp32=self.fp32_attention)
-                                          # doing some unnecessary recomputation here
+                    # doing some unnecessary recomputation here
             else:
                 y_true, _, _ = linear_attention(q, k, v, self.fp32_attention, self.eps)
 
